@@ -1,0 +1,158 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String      @id @default(cuid())
+  name          String
+  email         String     @unique
+  role          UserRole    @default(STUDENT)
+  submissions   Submission[] @relation("StudentSubmissions")
+  supervising   Submission[] @relation("TeacherSupervisions")
+  ipRights      IPRights[]
+  ipUsageLogs   IPUsageLog[]
+  ipLicenses    IPLicense[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Submission {
+  id            String      @id @default(cuid())
+  title         String
+  description   String?
+  fileUrl       String
+  authorId      String
+  supervisorId  String
+  moduleId      String
+  status        String      @default("pending")
+  author        User        @relation("StudentSubmissions", fields: [authorId], references: [id])
+  supervisor    User        @relation("TeacherSupervisions", fields: [supervisorId], references: [id])
+  module        Module      @relation(fields: [moduleId], references: [id])
+  ipRights      IPRights[]
+  exposures     Exposure[]
+  shareTokens   ShareToken[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([authorId])
+  @@index([supervisorId])
+  @@index([moduleId])
+}
+
+model Module {
+  id          String      @id @default(cuid())
+  name        String
+  code        String      @unique
+  submissions Submission[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+model IPRights {
+  id                String      @id @default(cuid())
+  submissionId      String
+  userId            String
+  rightsType        String      // copyright, patent, trademark, trade_secret
+  status            String      // pending, approved, rejected
+  registrationNumber String?
+  filingDate        DateTime
+  expirationDate    DateTime?
+  jurisdiction      String
+  description       String
+  restrictions      String[]
+  licensingTerms    String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  submission        Submission  @relation(fields: [submissionId], references: [id])
+  user              User        @relation(fields: [userId], references: [id])
+  usageLogs         IPUsageLog[]
+  watermarks        Watermark[]
+  licenses          IPLicense[]
+
+  @@index([submissionId])
+  @@index([userId])
+}
+
+model IPUsageLog {
+  id          String   @id @default(cuid())
+  ipRightsId  String
+  userId      String
+  accessType  String   // view, download, share, modify
+  timestamp   DateTime
+  purpose     String
+  approved    Boolean
+  ipAddress   String
+  userAgent   String
+  ipRights    IPRights @relation(fields: [ipRightsId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([ipRightsId])
+  @@index([userId])
+}
+
+model Watermark {
+  id          String   @id @default(cuid())
+  ipRightsId  String
+  type        String   // visible, invisible
+  content     String
+  position    String   // center, topLeft, topRight, bottomLeft, bottomRight
+  opacity     Float
+  ipRights    IPRights @relation(fields: [ipRightsId], references: [id])
+
+  @@index([ipRightsId])
+}
+
+model IPLicense {
+  id            String   @id @default(cuid())
+  ipRightsId    String
+  userId        String
+  licenseType   String   // personal, commercial, educational
+  active        Boolean  @default(true)
+  startDate     DateTime
+  expirationDate DateTime
+  terms         String
+  ipRights      IPRights @relation(fields: [ipRightsId], references: [id])
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([ipRightsId])
+  @@index([userId])
+}
+
+model Exposure {
+  id            String      @id @default(cuid())
+  submissionId  String
+  submission    Submission  @relation(fields: [submissionId], references: [id])
+  exposureType  String      // public, private, restricted
+  allowedUsers  String[]    // Array of user IDs who can access
+  allowedRoles  UserRole[]  // Array of roles that can access
+  startDate     DateTime?   // When the exposure begins
+  endDate       DateTime?   // When the exposure ends
+  password      String?     // Optional password protection
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([submissionId])
+}
+
+model ShareToken {
+  id             String   @id @default(cuid())
+  submissionId   String
+  token          String   @unique
+  expirationDate DateTime
+  createdAt      DateTime @default(now())
+  submission     Submission @relation(fields: [submissionId], references: [id])
+}
